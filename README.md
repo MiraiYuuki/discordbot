@@ -1,6 +1,8 @@
 ## discordbot
 
 It's a Discord bot!
+If you want to play with a running instance of the bot, Miku-nya#7061 is in
+the Starlight Stage Discord server.
 
 ### virtualenv and dependencies...
 
