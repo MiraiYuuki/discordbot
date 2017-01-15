@@ -4,6 +4,7 @@ import traceback
 import sys
 import config
 import json
+import discord
 
 P_MANAGE_CONFIG = auth.declare_right("MANAGE_CONFIG")
 P_MANAGE_MODULES = auth.declare_right("MANAGE_MODULES")
