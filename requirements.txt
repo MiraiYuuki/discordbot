@@ -1,0 +1,12 @@
+aiohttp==1.0.5
+async-timeout==1.1.0
+chardet==2.3.0
+discord.py==0.16.3
+multidict==2.1.4
+oauthlib==2.0.1
+peony-twitter==0.8.1.2
+pyotp==2.2.4
+qrcode==5.3
+requests==2.12.4
+six==1.10.0
+websockets==3.2
