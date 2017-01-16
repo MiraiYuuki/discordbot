@@ -7,13 +7,18 @@ import discord
 import sqlite3
 import time
 import sys
+import pytz
+from datetime import datetime, timedelta
 
 import loader
 import auth
 
-P_DERESUTE_PUBLIC = auth.declare_right("DERESUTE_PUBLIC")
-P_DERESUTE_NOISY  = auth.declare_right("DERESUTE_NOISY")
-P_DERESUTE_ADMIN  = auth.declare_right("DERESUTE_ADMIN")
+JST = pytz.timezone("Asia/Tokyo")
+
+P_DERESUTE_PUBLIC   = auth.declare_right("DERESUTE_PUBLIC")
+P_DERESUTE_NOISY    = auth.declare_right("DERESUTE_NOISY")
+P_DERESUTE_CUTOFFS  = auth.declare_right("DERESUTE_CUTOFFS")
+P_DERESUTE_ADMIN    = auth.declare_right("DERESUTE_ADMIN")
 
 class IDAlreadyExistsError(Exception):
     pass
@@ -39,6 +44,8 @@ class FriendDB(object):
         connection.commit()
 
         self.connection = connection
+
+        self.event = deresdata.EventReader()
 
     def set_id_for_name(self, name, id, originator):
         if self.get_id_for_name(name):
@@ -110,7 +117,7 @@ async def card(context, message, content):
     try:
         card_json = await cfetch(ep)
     except asyncio.TimeoutError:
-        return await client.send_message(message.channel, "timed out :(")
+        return await context.client.send_message(message.channel, "Timed out. Please try again in a few seconds.")
 
     c1, c2 = card_json["result"]
 
@@ -138,11 +145,13 @@ async def whatsnew(context, message, content):
     context.client.send_typing(message.channel)
 
     history = await cfetch("https://starlight.kirara.ca/api/private/history")
-    first = history["result"][0]
+
+    for ent in history["result"]:
+        cl = json.loads(ent["added_cards"] or "{}")
+        if cl:
+            break
 
     fetch_data_list = []
-
-    cl = json.loads(first["added_cards"])
     for lst in cl.values():
         fetch_data_list.extend(lst)
 
@@ -170,10 +179,13 @@ async def ctlstrings(strings):
     if not strings:
         return {}
 
-    with async_timeout.timeout(5):
-        async with aiohttp.post("https://starlight.kirara.ca/api/v1/read_tl",
-                                data=json.dumps(strings)) as response:
-            return await response.json()
+    try:
+        with async_timeout.timeout(5):
+            async with aiohttp.post("https://starlight.kirara.ca/api/v1/read_tl",
+                                    data=json.dumps(strings)) as response:
+                return await response.json()
+    except asyncio.TimeoutError:
+        return {}
 
 def tl_request_from_card_json(c1):
     sl = []
@@ -232,7 +244,7 @@ def embed_from_card_json(c1, c2, tl_dictionary):
 
 # -x-  ADMIN COMMANDS  -x-
 
-@DERESUTE.subcommand("buildkeywords")
+@DERESUTE.subcommand("buildkeywords", "bw")
 @auth.requires_right(P_DERESUTE_ADMIN)
 async def adm_buildkeywords(context, message, content):
     kwresult = await deresdata.build_keywords()
@@ -250,12 +262,14 @@ async def adm_forcereloaddata(context, message, content):
             del sys.modules[key]
 
     import deresdata
+    context.event = deresdata.EventReader()
     await context.reply("ok")
 
 # -x- ID
 
 @DERESUTE.subcommand("id",
-    description="Fetches profiles from deresute.me.")
+    description="Fetches profiles from deresute.me.",
+    synopsis="[id#] | [name] | add [name] [id] | del [name]")
 @auth.requires_right(P_DERESUTE_PUBLIC)
 async def get_id(context, message, content):
     if content.isdigit():
@@ -321,28 +335,54 @@ async def del_id_notsafe(context, message, content):
 
 # -x- Events
 
-@DERESUTE.subcommand("event", "tiers", "cutoffs", "e")
-@auth.requires_right(P_DERESUTE_ADMIN)
+@DERESUTE.subcommand("event", "tiers", "cutoffs", "e",
+    description="Current event cutoffs.")
+@auth.requires_right(P_DERESUTE_CUTOFFS)
 async def get_event(context, message, content):
-    cutoff = await deresdata.EventReader().get_cutoffs(int(content))
+    try:
+        the_event = await context.event.get_current()
+    except deresdata.NoCurrentEventError:
+        return await context.reply("There's no event right now.", mention=1)
+    except deresdata.CurrentEventNotRankingError:
+        return await context.reply("The current event is not a ranking event.", mention=1)
 
-    await context.reply(embed=embed_from_cutoff(cutoff))
+    tl_strings = await ctlstrings([the_event["name"]])
+    the_event["name"] = tl_strings.get(the_event["name"], the_event["name"])
 
-def embed_from_cutoff(cutoff):
+    cutoff = await context.event.get_cutoffs(the_event["id"])
+    await context.reply(embed=embed_from_cutoff(the_event, cutoff))
+
+def embed_from_cutoff(event, cutoff):
     embed = discord.Embed(type="rich")
 
-    embed.title = "bungus"
-    embed.add_field(name=cutoff.name, value="{0}".format(
-        cutoff.collected), inline=False)
+    now = pytz.utc.localize(datetime.now())
+    collect_date = pytz.utc.localize(cutoff.collected).astimezone(JST)
+
+    s_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["start_date"])).astimezone(JST)
+    e_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["end_date"])).astimezone(JST)
+    timeleft = e_dt - now
+
+    embed.add_field(name=event["name"],
+        value="{0} - {1}, {2:.1f} hours left.".format(
+            s_dt.strftime("%m/%d %H:%M"),
+            e_dt.strftime("%m/%d %H:%M %Z"),
+            ((timeleft.days * 86400) + timeleft.seconds) / (60 * 60),
+            cutoff.collected), inline=False)
 
     cutoff_content = "\n".join([
-        "{0.position}:\t {0.points} pts (+{0.delta})".format(tier)
+        "#{0.position}: **{0.points:,}** pts ({1}{0.delta})".format(tier, "+" if tier.delta >= 0 else "")
         for tier in cutoff.tiers])
     embed.add_field(name="Cutoffs", value=cutoff_content, inline=False)
 
-    # r = random.randint(25, 256)
-    # g = random.randint(25, 256)
-    # b = random.randint(25, 256)
-    # embed.colour = (r << 16) | (g << 8) | b
+    if now - collect_date > timedelta(minutes=30):
+        stale = 1
+        embed.colour = 0xFF0000
+    else:
+        stale = 0
+        embed.colour = 0x00CC00
 
+    embed.add_field(name="Updated",
+        value="{0} ({1}, next update around {2})".format(collect_date.strftime("%m/%d %H:%M"),
+                           "stale" if stale else "fresh",
+                           (collect_date + timedelta(hours=1)).strftime("%H:%M")), inline=False)
     return embed
