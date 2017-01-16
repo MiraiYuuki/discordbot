@@ -10,7 +10,10 @@ P_MANAGE_CONFIG = auth.declare_right("MANAGE_CONFIG")
 P_MANAGE_MODULES = auth.declare_right("MANAGE_MODULES")
 P_EVAL_CODE = auth.declare_right("EVAL_CODE")
 
-@loader.command("reload",
+mod = loader.register_command("mod", "m",
+    description="Load, reload, and unload command modules.")
+
+@mod.subcommand("reload",
     description="Reload a module.")
 @auth.requires_right(P_MANAGE_MODULES)
 async def reload_mod(context, message, content):
@@ -26,12 +29,17 @@ async def reload_mod(context, message, content):
     bot.uninit_module(mod)
     del mod
 
-    mod = loader.load_module(content)
-    bot.init_module(mod)
+    try:
+        mod = loader.load_module(content)
+        bot.init_module(mod)
+    except Exception as e:
+        await context.reply("Loading '{0}' failed with a {1}. Fix it and `load` the module again.".format(
+            content, e.__class__.__name__))
+        raise
+    else:
+        await context.reply("\u2705")
 
-    await context.reply("\u2705")
-
-@loader.command("unload",
+@mod.subcommand("unload",
     description="Unload a module.")
 @auth.requires_right(P_MANAGE_MODULES)
 async def unload_mod(context, message, content):
@@ -48,7 +56,7 @@ async def unload_mod(context, message, content):
 
     await context.reply("\u2705")
 
-@loader.command("load",
+@mod.subcommand("load",
     description="Load a module.")
 @auth.requires_right(P_MANAGE_MODULES)
 async def load_mod(context, message, content):
@@ -58,10 +66,16 @@ async def load_mod(context, message, content):
         return await context.reply("It's already loaded, nya.")
 
     bot = context.of("discordbot")
-    mod = loader.load_module(content)
-    bot.init_module(mod)
 
-    await context.reply("\u2705")
+    try:
+        mod = loader.load_module(content)
+        bot.init_module(mod)
+    except Exception as e:
+        await context.reply("Loading '{0}' failed with a {1}. Fix it and `load` the module again.".format(
+            content, e.__class__.__name__))
+        raise
+    else:
+        await context.reply("\u2705")
 
 @loader.command("eval",
     description="Executes Python code in command handler context.")
@@ -69,7 +83,8 @@ async def load_mod(context, message, content):
 async def eval_code(context, message, content):
     await context.reply(str(eval(content)))
 
-config_command = loader.register_command("config", "cf")
+config_command = loader.register_command("config", "cf",
+    description="Write configuration variables.")
 sensitive_keys = {"client.token"}
 
 @config_command.subcommand("write", "w")
