@@ -50,8 +50,11 @@ class PersonalizedContext(object):
             Some names are special-cased, see DiscordBot.get_module_context. """
         return self.get_module_context(mod_name_or_global)
 
-    async def reply(self, msg=None, *, embed=None):
-        await self.client.send_message(self.message.channel, msg, embed=embed)
+    async def reply(self, msg=None, *, embed=None, mention=0):
+        if mention and msg:
+            msg = " ".join((self.message.author.mention, msg))
+
+        return await self.client.send_message(self.message.channel, msg, embed=embed)
 
     # for convenience, we proxy all other attributes to the module context
 
