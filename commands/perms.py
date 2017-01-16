@@ -2,6 +2,7 @@ import loader
 import auth
 import shlex
 import re
+import discord
 
 P_MANAGE_PERMISSIONS = auth.declare_right("MANAGE_PERMISSIONS")
 
@@ -49,9 +50,12 @@ async def grant(context, message, content, check_flag=1):
             return await context.reply("Undeclared right, {0}.".format(
                 flagname, content))
 
-        context.of("discordbot").rights_db.write_permission(scope, subject, auth.declare_right(flagname), have)
+        context.of("auth").write_permission(scope, subject, auth.declare_right(flagname), have)
 
-    await context.client.add_reaction(message, "\u2705")
+    try:
+        await context.client.add_reaction(message, "\u2705")
+    except discord.errors.Forbidden:
+        await context.reply("\u2705", mention=1)
 
 @loader.command("uid",
     description="Tells you what your user ID is.")
