@@ -343,32 +343,23 @@ async def get_event(context, message, content):
         the_event = await context.event.get_current()
     except deresdata.NoCurrentEventError:
         return await context.reply("There's no event right now.", mention=1)
-    except deresdata.CurrentEventNotRankingError:
-        return await context.reply("The current event is not a ranking event.", mention=1)
 
     tl_strings = await ctlstrings([the_event["name"]])
     the_event["name"] = tl_strings.get(the_event["name"], the_event["name"])
+    embed = embed_from_event(the_event)
+    
+    try:
+        cutoff = await context.event.get_cutoffs(the_event["id"])
+        add_cutoff_to_embed(embed, cutoff)
+    except deresdata.CurrentEventNotRankingError:
+        embed.colour = 0xCCCC00
+        embed.set_footer(text="Cutoff data not shown because this is not a ranking event.")
 
-    cutoff = await context.event.get_cutoffs(the_event["id"])
-    await context.reply(embed=embed_from_cutoff(the_event, cutoff))
+    await context.reply(embed=embed)
 
-def embed_from_cutoff(event, cutoff):
-    embed = discord.Embed(type="rich")
-
+def add_cutoff_to_embed(embed, cutoff):
     now = pytz.utc.localize(datetime.now())
     collect_date = pytz.utc.localize(cutoff.collected).astimezone(JST)
-
-    s_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["start_date"])).astimezone(JST)
-    e_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["end_date"])).astimezone(JST)
-    timeleft = e_dt - now
-
-    embed.add_field(name=event["name"],
-        value="{0} - {1}, {2:.1f} hours left.".format(
-            s_dt.strftime("%m/%d %H:%M"),
-            e_dt.strftime("%m/%d %H:%M %Z"),
-            ((timeleft.days * 86400) + timeleft.seconds) / (60 * 60),
-            cutoff.collected), inline=False)
-
     cutoff_content = "\n".join([
         "#{0.position}: **{0.points:,}** pts ({1}{0.delta})".format(tier, "+" if tier.delta >= 0 else "")
         for tier in cutoff.tiers])
@@ -385,4 +376,21 @@ def embed_from_cutoff(event, cutoff):
         value="{0} ({1}, next update around {2})".format(collect_date.strftime("%m/%d %H:%M"),
                            "stale" if stale else "fresh",
                            (collect_date + timedelta(hours=1)).strftime("%H:%M")), inline=False)
+    embed.set_footer(text="deresute.mon.moe")
+
+def embed_from_event(event):
+    embed = discord.Embed(type="rich")
+
+    now = pytz.utc.localize(datetime.now())
+
+    s_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["start_date"])).astimezone(JST)
+    e_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["end_date"])).astimezone(JST)
+    timeleft = e_dt - now
+
+    embed.add_field(name=event["name"],
+        value="{0} - {1}, {2:.1f} hours left.".format(
+            s_dt.strftime("%m/%d %H:%M"),
+            e_dt.strftime("%m/%d %H:%M %Z"),
+            ((timeleft.days * 86400) + timeleft.seconds) / (60 * 60)), inline=False)
+
     return embed

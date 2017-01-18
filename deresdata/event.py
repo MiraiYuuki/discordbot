@@ -56,13 +56,13 @@ class EventReader(object):
         current_event = h_info["events"][0]
         event_id = current_event["id"]
 
-        if not self.is_valid_event_id(event_id):
-            raise CurrentEventNotRankingError(current_event)
-
         return current_event
 
     async def get_cutoffs(self, event_id):
         # req = client.api.statuses.home_timeline.get(count=200, since_id=0)
+
+        if not self.is_valid_event_id(event_id):
+            raise CurrentEventNotRankingError()
 
         if not self.is_cutoff_stale(self.cutoff_cache):
             return self.cutoff_cache
