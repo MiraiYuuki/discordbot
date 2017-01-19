@@ -392,6 +392,9 @@ async def get_event(context, message, content):
     except deresdata.CurrentEventNotRankingError:
         embed.colour = 0xCCCC00
         embed.set_footer(text="Cutoff data not shown because this is not a ranking event.")
+    except deresdata.NoCutoffCurrentlyAvailableError:
+        embed.colour = 0xCCCC00
+        embed.set_footer(text="It's currently too early to show cutoff data. Try again in an hour.")
 
     await context.reply(embed=embed)
 
