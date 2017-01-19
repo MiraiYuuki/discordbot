@@ -15,9 +15,9 @@ class FlagFilter(object):
         return self.match(card)
 
 drst_nl_query_t = namedtuple("drst_nl_query_t",
-    ("keywords", "filters", "ordinal"))
+    ("keywords", "filters", "ordinal", "is_awake"))
 drst_named_id_query_t = namedtuple("drst_named_id_query_t",
-    ("id",))
+    ("id", "is_awake"))
 
 NL_FILTER_LIMITED   =  0b00000001
 NL_FILTER_RATES     =  0b00000010
@@ -60,11 +60,12 @@ class InvalidQueryError(Exception):
 def parse_query(query):
     dm = DRST_NL_GEX_DIRECT_ID.match(query.strip())
     if dm:
-        return drst_named_id_query_t(int(dm.group(1)))
+        the_id = int(dm.group(1))
+        return drst_named_id_query_t(the_id, not (the_id % 2))
 
-    words = query.strip().split()
+    words = query.lower().strip().split()
 
-    has_rarity_filter = None
+    wants_awakened = 0
     restrict_ordinal = None
     idol = None
     filters = []
@@ -80,9 +81,12 @@ def parse_query(query):
             restrict_ordinal = int(found_ordinal.group(1))
             word = word[:-len(found_ordinal.group(1))]
 
-        if word.lower() in DRST_NL_RARITIES:
+        if word in DRST_NL_RARITIES:
             filters.append(DRST_NL_RARITIES[word.lower()])
-            has_rarity_filter = 1
+            continue
+
+        if word in {"awakened", "idolized", "transformed"}:
+            wants_awakened = 1
             continue
 
         for regex, pfilter in DRST_NL_FILTERFLAG_WORDS.items():
@@ -100,7 +104,7 @@ def parse_query(query):
     #     # print("no rarity filter in query, but ordinal given - assuming ssr")
     #     filters.append(DRST_NL_RARITIES["ssr"])
 
-    return drst_nl_query_t(filtered_words, filters, restrict_ordinal)
+    return drst_nl_query_t(filtered_words, filters, restrict_ordinal, wants_awakened)
 
 TEST_QUERIES = [
     "miku2",

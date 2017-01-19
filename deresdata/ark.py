@@ -1,10 +1,10 @@
 import sqlite3
-import aiohttp
 import json
 import requests
 import unicodedata
 from itertools import starmap
 from collections import namedtuple, defaultdict
+from . import httputils
 try:
     from . import query
     from .query import InvalidQueryError
@@ -60,14 +60,6 @@ def event_type(e):
 def gacha_is_limited(e):
     return e & 0x1
 
-async def cfetch(url):
-    async with aiohttp.get(url) as response:
-        return await response.json()
-
-async def cpost(url, payload):
-    async with aiohttp.post(url, data=json.dumps(payload)) as response:
-        return await response.json()
-
 async def build_ark():
     conn = sqlite3.connect("drst_search_index.db")
     prep_db(conn)
@@ -76,17 +68,17 @@ async def build_ark():
     conn.commit()
 
     print("Building name list...")
-    ns = await cfetch("https://starlight.kirara.ca/api/v2/char_t/all?keys=chara_id,conventional")
+    ns = await httputils.cfetch("https://starlight.kirara.ca/api/v2/char_t/all?keys=chara_id,conventional")
     conn.executemany("INSERT INTO names_v1 VALUES (:chara_id, lower(:conventional))",
         ns["result"])
 
-    cs = await cfetch("https://starlight.kirara.ca/api/v2/card_t/all?keys=id,evolution_id,rarity,attribute,chara_id")
+    cs = await httputils.cfetch("https://starlight.kirara.ca/api/v2/card_t/all?keys=id,evolution_id,rarity,attribute,chara_id")
     conn.executemany("INSERT INTO cards_v1 VALUES (:id, :evolution_id, :rarity, :attribute, :chara_id, 0, 0)",
         cs["result"])
 
     flg_bag = defaultdict(lambda: 0)
     rls_bag = {}
-    hl = await cfetch("https://starlight.kirara.ca/api/private/history")
+    hl = await httputils.cfetch("https://starlight.kirara.ca/api/private/history")
     for he in hl["result"]:
         if not he["added_cards"]:
             continue
@@ -110,7 +102,7 @@ async def build_ark():
     conn.executemany("UPDATE cards_v1 SET sort_key = ?, av_flag = ? WHERE root_id = ?",
         map(lambda x: (rls_bag[x], flg_bag[x], x), [x["id"] for x in cs["result"]]))
 
-    meta = await cfetch("https://starlight.kirara.ca/api/v1/info")
+    meta = await httputils.cfetch("https://starlight.kirara.ca/api/v1/info")
     conn.execute("INSERT INTO meta_v2 VALUES (?, ?)", (meta["truth_version"], 0))
 
     conn.commit()
@@ -141,11 +133,11 @@ async def build_keywords():
     prep_db(conn)
     conn.execute("DELETE FROM keywords_v1")
 
-    cs = await cfetch("https://starlight.kirara.ca/api/v2/card_t/all?keys=id,title")
+    cs = await httputils.cfetch("https://starlight.kirara.ca/api/v2/card_t/all?keys=id,title")
     id_map = {k["id"]: k["title"]
               for k in cs["result"] if k["title"]}
     tl_list = list(set(id_map.values()))
-    tl_dictionary = await cpost("https://starlight.kirara.ca/api/v1/read_tl", tl_list)
+    tl_dictionary = await httputils.ctlstrings(tl_list)
 
     inserts = 0
     curs = conn.cursor()

@@ -1,14 +1,13 @@
 import deresdata
-import aiohttp
-import asyncio
-import async_timeout
 import json
 import discord
 import sqlite3
 import time
 import sys
 import pytz
+import asyncio
 from datetime import datetime, timedelta
+from collections import namedtuple
 
 import loader
 import auth
@@ -29,7 +28,6 @@ class IDNotDeletedError(Exception):
 class IDInvalidError(Exception):
     pass
 
-@loader.context_class
 class FriendDB(object):
     def __init__(self):
         connection = sqlite3.connect("drst_game_ids.db")
@@ -44,8 +42,6 @@ class FriendDB(object):
         connection.commit()
 
         self.connection = connection
-
-        self.event = deresdata.EventReader()
 
     def set_id_for_name(self, name, id, originator):
         if self.get_id_for_name(name):
@@ -80,6 +76,25 @@ class FriendDB(object):
         else:
             return k[0]
 
+@loader.context_class
+class DeresuteModuleContext(object):
+    truth_version_timeout_t = namedtuple("truth_version_timeout_t", ("version", "checktime"))
+    def __init__(self):
+        self.frienddb = FriendDB()
+        self.event = deresdata.EventReader()
+
+        self.cur_truth = self.truth_version_timeout_t("", 0)
+        self.last_lookup_card_ent = None
+
+    async def get_current_truth_version(self):
+        if time.time() - self.cur_truth.checktime >= 3600:
+            api_info = await deresdata.cfetch("https://starlight.kirara.ca/api/v1/info")
+            next_hour = ((time.time() // 3600) + 1) * 3600
+            self.cur_truth = self.truth_version_timeout_t(str(api_info["truth_version"]), next_hour)
+            return str(api_info["truth_version"])
+        else:
+            return self.cur_truth.version
+
 DERESUTE = loader.register_command("deresute", "drst", "dere", "ss",
     description="umbrella command for the deresute module - private API free for 0 days")
 
@@ -91,16 +106,13 @@ DERESUTE = loader.register_command("deresute", "drst", "dere", "ss",
 async def card(context, message, content):
     await context.client.send_typing(message.channel)
 
-    api_info = await cfetch("https://starlight.kirara.ca/api/v1/info")
-    if deresdata.needs_update(str(api_info["truth_version"])):
-        print("Building ark...")
+    if deresdata.needs_update(await context.get_current_truth_version()):
+        await context.reply("I need to rebuild the index, nya. I'll find your card in a few seconds...", mention=1)
         await deresdata.build_ark()
 
     try:
-        t1 = time.time()
         query = deresdata.parse_query(content)
         results = deresdata.exec_query(query)
-        print("exec time:", time.time() - t1)
     except deresdata.InvalidQueryError as error:
         return await context.client.send_message(message.channel, "{0} {1}".format(
             message.author.mention,
@@ -108,26 +120,26 @@ async def card(context, message, content):
         ))
 
     if not results:
-        return await context.client.send_message(message.channel,
-            "There aren't any cards matching your search, nya.")
+        return await context.reply("There aren't any cards matching your search, nya.", mention=1)
     else:
         fc = results[0]
+        context.last_lookup_card_ent = fc
 
     ep = "https://starlight.kirara.ca/api/v1/card_t/{0},{1}".format(fc.root_id, fc.awakened_id)
     try:
-        card_json = await cfetch(ep)
+        card_json = await deresdata.cfetch(ep)
     except asyncio.TimeoutError:
-        return await context.client.send_message(message.channel, "Timed out. Please try again in a few seconds.")
+        return await context.reply("Timed out. Please try again in a few seconds.", mention=1)
 
     c1, c2 = card_json["result"]
 
     try:
-        tl_dictionary = await ctlstrings(tl_request_from_card_json(c1))
+        tl_dictionary = await deresdata.ctlstrings(tl_request_from_card_json(c1))
     except Exception as e:
         tl_dictionary = {}
         print(e)
 
-    await context.client.send_message(message.channel, embed=embed_from_card_json(c1, c2, tl_dictionary))
+    await context.reply(embed=embed_from_card_json(c1, c2, tl_dictionary))
 
     if len(results) > 1:
         if len(results) - 1 != 1:
@@ -138,13 +150,56 @@ async def card(context, message, content):
         await context.reply(fmt.format(
             len(results) - 1, ", ".join(map(lambda x: str(x.root_id), results[1:])) ))
 
+@DERESUTE.subcommand("image", "cardimage", "pic",
+    description="Link card or spread images. ",
+    synopsis="[search terms...]",
+    examples=["syuko2", "event mayu", "ssr riina"])
+@auth.requires_right(P_DERESUTE_PUBLIC)
+async def card_image(context, message, content):
+    await context.client.send_typing(message.channel)
+
+    if content.strip() == "":
+        if context.last_lookup_card_ent is None:
+            return await context.reply("You need to search for something, nya.", mention=1)
+
+        fc = context.last_lookup_card_ent
+        want_awakened = 0
+    else:
+        if deresdata.needs_update(await context.get_current_truth_version()):
+            await context.reply("I need to rebuild the index, nya. I'll find your card in a few seconds...", mention=1)
+            await deresdata.build_ark()
+
+        try:
+            query = deresdata.parse_query(content)
+            results = deresdata.exec_query(query)
+        except deresdata.InvalidQueryError as error:
+            return await context.reply(str(error), mention=1)
+
+        if not results:
+            return await context.reply("There aren't any cards matching your search, nya.", mention=1)
+        else:
+            fc = results[0]
+            want_awakened = query.is_awake
+
+    if fc.rarity < 5:
+        im_class = "card"
+    else:
+        im_class = "spread"
+
+    if want_awakened:
+        use_id = fc.awakened_id
+    else:
+        use_id = fc.root_id
+
+    await context.reply("https://hoshimoriuta.kirara.ca/{1}/{0}.png".format(use_id, im_class))
+
 @DERESUTE.subcommand("whatsnew",
     description="Display the latest update.")
 @auth.requires_right(P_DERESUTE_NOISY)
 async def whatsnew(context, message, content):
     context.client.send_typing(message.channel)
 
-    history = await cfetch("https://starlight.kirara.ca/api/private/history")
+    history = await deresdata.cfetch("https://starlight.kirara.ca/api/private/history")
 
     for ent in history["result"]:
         cl = json.loads(ent["added_cards"] or "{}")
@@ -156,11 +211,11 @@ async def whatsnew(context, message, content):
         fetch_data_list.extend(lst)
 
     ep = "https://starlight.kirara.ca/api/v1/card_t/" + ",".join(map(str, fetch_data_list))
-    cards = await cfetch(ep)
+    cards = await deresdata.cfetch(ep)
     tl_list = list(set(sum((tl_request_from_card_json(c) for c in cards["result"]), [])))
 
     try:
-        tl_dictionary = await ctlstrings(tl_list)
+        tl_dictionary = await deresdata.ctlstrings(tl_list)
     except Exception as e:
         tl_dictionary = {}
         print(e)
@@ -169,23 +224,6 @@ async def whatsnew(context, message, content):
 
     for cjson in cards["result"]:
         await context.reply(embed=embed_from_card_json(cjson, cjson, tl_dictionary))
-
-async def cfetch(url):
-    with async_timeout.timeout(5):
-        async with aiohttp.get(url) as response:
-            return await response.json()
-
-async def ctlstrings(strings):
-    if not strings:
-        return {}
-
-    try:
-        with async_timeout.timeout(5):
-            async with aiohttp.post("https://starlight.kirara.ca/api/v1/read_tl",
-                                    data=json.dumps(strings)) as response:
-                return await response.json()
-    except asyncio.TimeoutError:
-        return {}
 
 def tl_request_from_card_json(c1):
     sl = []
@@ -276,7 +314,7 @@ async def get_id(context, message, content):
         return await context.reply("https://deresute.me/{0}/medium.png?{1}".format(
             content, time.time()))
 
-    the_id = context.get_id_for_name(content)
+    the_id = context.frienddb.get_id_for_name(content)
     if the_id is not None:
         return await context.reply("https://deresute.me/{0}/medium.png?{1}".format(
             the_id, time.time()))
@@ -293,7 +331,7 @@ async def add_id(context, message, content):
         return await context.reply("Provide a name and ID.")
 
     try:
-        context.set_id_for_name(args[0], args[1], message.author.id)
+        context.frienddb.set_id_for_name(args[0], args[1], message.author.id)
     except IDAlreadyExistsError:
         await context.reply("Name is already in use. `del` it and try again.")
     except NameNeedsOneOrMoreNonNumbersError:
@@ -312,7 +350,7 @@ async def add_id(context, message, content):
 @auth.requires_right(P_DERESUTE_PUBLIC)
 async def del_id_safe(context, message, content):
     try:
-        context.delete_name_safe(content, message.author.id)
+        context.frienddb.delete_name_safe(content, message.author.id)
     except IDNotDeletedError:
         await context.reply("Name wasn't deleted. Are you sure it belongs to you?")
     else:
@@ -326,7 +364,7 @@ async def del_id_safe(context, message, content):
     synopsis="[name]")
 @auth.requires_right(P_DERESUTE_ADMIN)
 async def del_id_notsafe(context, message, content):
-    context.delete_name(content)
+    context.frienddb.delete_name(content)
 
     try:
         await context.client.add_reaction(message, "\u2705")
@@ -344,10 +382,10 @@ async def get_event(context, message, content):
     except deresdata.NoCurrentEventError:
         return await context.reply("There's no event right now.", mention=1)
 
-    tl_strings = await ctlstrings([the_event["name"]])
+    tl_strings = await deresdata.ctlstrings([the_event["name"]])
     the_event["name"] = tl_strings.get(the_event["name"], the_event["name"])
     embed = embed_from_event(the_event)
-    
+
     try:
         cutoff = await context.event.get_cutoffs(the_event["id"])
         add_cutoff_to_embed(embed, cutoff)
@@ -359,7 +397,7 @@ async def get_event(context, message, content):
 
 def add_cutoff_to_embed(embed, cutoff):
     now = pytz.utc.localize(datetime.now())
-    collect_date = pytz.utc.localize(cutoff.collected).astimezone(JST)
+    collect_date = cutoff.collected.astimezone(JST)
     cutoff_content = "\n".join([
         "#{0.position}: **{0.points:,}** pts ({1}{0.delta})".format(tier, "+" if tier.delta >= 0 else "")
         for tier in cutoff.tiers])
@@ -372,25 +410,27 @@ def add_cutoff_to_embed(embed, cutoff):
         stale = 0
         embed.colour = 0x00CC00
 
-    embed.add_field(name="Updated",
-        value="{0} ({1}, next update around {2})".format(collect_date.strftime("%m/%d %H:%M"),
-                           "stale" if stale else "fresh",
-                           (collect_date + timedelta(hours=1)).strftime("%H:%M")), inline=False)
-    embed.set_footer(text="deresute.mon.moe")
+    embed.set_footer(text="Updated {0} ({1}, next update around {2})".format(
+        collect_date.strftime("%m/%d %H:%M"),
+        "stale" if stale else "fresh",
+        (collect_date + timedelta(hours=1)).strftime("%H:%M")))
 
 def embed_from_event(event):
     embed = discord.Embed(type="rich")
 
-    now = pytz.utc.localize(datetime.now())
+    now = pytz.utc.localize(datetime.utcnow())
 
     s_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["start_date"])).astimezone(JST)
     e_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["end_date"])).astimezone(JST)
     timeleft = e_dt - now
 
+    hours = (timeleft.days * 24) + (timeleft.seconds // (60 * 60))
+    minutes = (timeleft.seconds // 60) % 60
+
     embed.add_field(name=event["name"],
-        value="{0} - {1}, {2:.1f} hours left.".format(
+        value="{0} - {1}, {2}h {3}m left.".format(
             s_dt.strftime("%m/%d %H:%M"),
             e_dt.strftime("%m/%d %H:%M %Z"),
-            ((timeleft.days * 86400) + timeleft.seconds) / (60 * 60)), inline=False)
+            hours, minutes), inline=False)
 
     return embed
