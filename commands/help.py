@@ -16,8 +16,7 @@ async def help(context, message, content):
                 break
 
     context.arg0 = content
-    await loader.Command.default_implementation(inspect_cmd,
-        context, message, content)
+    await context.reply(inspect_cmd.help_message(context))
 
 @loader.command("source", "code")
 async def source(context, message, text):

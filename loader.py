@@ -10,7 +10,7 @@ MODULE_CONTEXT_CLASSES = {}
 MANAGED_COMMAND_PACKAGE = config.get("bot.commands_package", "commands")
 MANAGED_COMMAND_PACKAGE_PATH = os.path.dirname(__import__(MANAGED_COMMAND_PACKAGE).__file__)
 
-ROOT_COMMAND     = Command("", execution=Command.noop_execute)
+ROOT_COMMAND     = Command("")
 command          = ROOT_COMMAND.subcommand
 register_command = ROOT_COMMAND.register_subcommand
 
@@ -44,7 +44,7 @@ def load_module(name):
     LOADED_MODULES.add(mod)
 
     LOADING_MODULE = None
-    
+
     return mod
 
 def unload_module(name):

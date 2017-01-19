@@ -66,13 +66,16 @@ class Command(object):
     async def __call__(self, *args, **kwargs):
         return await self.execute(*args, **kwargs)
 
-    @staticmethod
-    async def noop_execute(context, message, content):
-        return
-
     async def default_implementation(self, context, message, content):
         """ Reply with a help message. The content depends on whether you
             specified description, synopsis, examples, etc. """
+
+        if self.word == "":
+            return
+
+        await context.reply(self.help_message(context))
+
+    def help_message(self, context):
         msg = []
 
         if self.description:
@@ -111,7 +114,7 @@ class Command(object):
             else:
                 msg.append("\nFor information about a specific command, DM me `help [command]`.")
 
-        await context.reply("\n".join(msg))
+        return "\n".join(msg)
 
 class DefaultModuleContext(object):
     pass
