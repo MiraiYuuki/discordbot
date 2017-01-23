@@ -54,3 +54,11 @@ def embed_from_cutoff(event, cutoff):
     embed.colour = (r << 16) | (g << 8) | b
 
     return embed
+
+@sif.subcommand("whatis",
+    description="Describe a resource ID.",
+    synopsis="[nnnnnnnn] ...")
+@auth.requires_right(P_SIF_PUBLIC)
+async def sif_whatis(context, message, text):
+    pl = "\n".join(map(lambda x: "{0}: {1}".format(x, lldata.identify_by_resid(x)), text.split()))
+    await context.reply("\n" + pl, mention=1)
