@@ -392,11 +392,41 @@ async def get_event(context, message, content):
     except deresdata.CurrentEventNotRankingError:
         embed.colour = 0xCCCC00
         embed.set_footer(text="Cutoff data not shown because this is not a ranking event.")
-    except deresdata.NoCutoffCurrentlyAvailableError:
+    except deresdata.NoDataCurrentlyAvailableError:
         embed.colour = 0xCCCC00
         embed.set_footer(text="It's currently too early to show cutoff data. Try again in an hour.")
 
     await context.reply(embed=embed)
+
+@DERESUTE.subcommand("prediction", "predict", "p",
+    description="Current event predictions.")
+@auth.requires_right(P_DERESUTE_CUTOFFS)
+async def get_event_prediction(context, message, content):
+    try:
+        prediction = await context.event.get_latest_prediction()
+    except deresdata.NoDataCurrentlyAvailableError:
+        return await context.reply("No prediction is available right now. Try again later.", mention=1)
+
+    tl_strings = await deresdata.ctlstrings([prediction.name])
+
+    embed = discord.Embed(type="rich")
+    embed.title = tl_strings.get(prediction.name, prediction.name)
+
+    add_prediction_to_embed(embed, prediction)
+
+    await context.reply(embed=embed)
+
+def add_prediction_to_embed(embed, prediction):
+    now = pytz.utc.localize(datetime.now())
+    collect_date = prediction.collected.astimezone(JST)
+
+    cutoff_content = "\n".join([
+        "#{0.position}: **{0.points:,}** pts (±{0.error})".format(tier)
+        for tier in prediction.tiers])
+    embed.add_field(name="Predictions", value=cutoff_content, inline=False)
+
+    embed.set_footer(text="Updated {0} | @cindere_border".format(
+        collect_date.strftime("%m/%d %H:%M")))
 
 def add_cutoff_to_embed(embed, cutoff):
     now = pytz.utc.localize(datetime.now())
@@ -406,17 +436,10 @@ def add_cutoff_to_embed(embed, cutoff):
         for tier in cutoff.tiers])
     embed.add_field(name="Cutoffs", value=cutoff_content, inline=False)
 
-    if now - collect_date > timedelta(minutes=30):
-        stale = 1
-        embed.colour = 0xFF0000
-    else:
-        stale = 0
-        embed.colour = 0x00CC00
-
-    embed.set_footer(text="Updated {0} ({1}, next update around {2})".format(
+    embed.colour = 0x00CC00
+    embed.set_footer(text="Updated {0} (next update around {1}) | Deltas since last hour | starlight.tachibana.cool".format(
         collect_date.strftime("%m/%d %H:%M"),
-        "stale" if stale else "fresh",
-        (collect_date + timedelta(hours=1)).strftime("%H:%M")))
+        (collect_date + timedelta(minutes=15)).strftime("%H:%M")))
 
 def embed_from_event(event):
     embed = discord.Embed(type="rich")

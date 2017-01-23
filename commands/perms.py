@@ -62,3 +62,12 @@ async def grant(context, message, content, check_flag=1):
 async def whoami(context, message, content):
     await context.client.send_message(message.channel,
         "{0} {1}".format(message.author.mention, message.author.id))
+
+@loader.command("lsrole",
+    description="List server roles.")
+@auth.requires_right(P_MANAGE_PERMISSIONS)
+async def lsrole(context, message, content):
+    targ = discord.utils.find(lambda s: s.id == content, context.client.servers)
+    
+    for k in targ.roles:
+        await context.reply("{0} -> {1}".format(k.name, k.id))

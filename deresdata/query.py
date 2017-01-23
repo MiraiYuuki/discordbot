@@ -85,7 +85,7 @@ def parse_query(query):
             filters.append(DRST_NL_RARITIES[word.lower()])
             continue
 
-        if word in {"awakened", "idolized", "transformed"}:
+        if word in {"awakened", "idolized", "transformed", "evolved"}:
             wants_awakened = 1
             continue
 

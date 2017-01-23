@@ -18,8 +18,17 @@ async def llsif_fetch_eventinfo():
     async with aiohttp.get("http://llsif.net/data/event_info.json") as r:
         ei_struct = await r.json()
 
-    return {"JP": event_t(ei_struct["current_jp_event"], ei_struct["jp_events"][str(ei_struct["current_jp_event"])]["event_name"]),
-            "EN": event_t(ei_struct["current_en_event"], ei_struct["en_events"][str(ei_struct["current_en_event"])]["event_name"])}
+    en_e = None
+    jp_e = None
+
+    if ei_struct["current_jp_event"]:
+        jp_e = event_t(ei_struct["current_jp_event"], ei_struct["jp_events"][str(ei_struct["current_jp_event"])]["event_name"])
+
+    if ei_struct["current_en_event"]:
+        en_e = event_t(ei_struct["current_en_event"], ei_struct["en_events"][str(ei_struct["current_en_event"])]["event_name"])
+
+    return {"JP": jp_e,
+            "EN": en_e}
 
 async def llsif_fetch_real_cutoffs(sid, event_id):
     async with aiohttp.get("http://llsif.net/data/{0}/{1}.csv".format(sid, event_id)) as r:
