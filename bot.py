@@ -8,6 +8,8 @@ import auth
 import json
 import error_reporting
 import asyncio
+import sys
+import os
 
 def make_glue(c, f):
     async def glue(*a, **k):
@@ -21,6 +23,9 @@ def mention_needed_for(m):
         return 0
 
     return 1
+
+class SelfTerminate(BaseException):
+    pass
 
 class PersonalizedContext(object):
     """ The context object passed to command executors. """
@@ -101,6 +106,8 @@ class DiscordBot(object):
         self.module_contexts[m.__name__] = mctx
 
     async def uninit_module(self, m):
+        print("uninit_module: calling deinit on", m.__name__)
+
         try:
             await self.module_contexts[m.__name__].deinit(self)
         except AttributeError:
@@ -142,7 +149,7 @@ class DiscordBot(object):
 
         try:
             loop.run_until_complete(self.init_modules_and_run_client(*args, **kwargs))
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SelfTerminate):
             # https://github.com/Rapptz/discord.py/blob/async/discord/client.py#L522
             loop.run_until_complete(self.client.logout())
             pending = asyncio.Task.all_tasks(loop=loop)
@@ -156,6 +163,20 @@ class DiscordBot(object):
         finally:
             loop.run_until_complete(self.uninit_modules())
             loop.close()
+
+    def restart(self):
+        strat = config.get("bot.restart_strategy", "terminate")
+        if strat == "terminate":
+            self.terminate()
+        elif strat == "reexec":
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    def terminate(self):
+        def killer():
+            print("terminate: DiscordBot will now exit. see you soon!")
+            raise SelfTerminate()
+
+        self.client.loop.call_soon(killer)
 
     # --x--
 

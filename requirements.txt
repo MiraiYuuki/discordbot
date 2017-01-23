@@ -1,13 +1,15 @@
-aiohttp==1.0.5
+aiohttp==1.2.0
 async-timeout==1.1.0
 chardet==2.3.0
 discord.py==0.16.3
 multidict==2.1.4
 oauthlib==2.0.1
-peony-twitter==0.8.1.2
+peony-twitter==0.9.0
 pyotp==2.2.4
 pytz==2016.10
 qrcode==5.3
 requests==2.12.4
+sh==1.12.9
 six==1.10.0
 websockets==3.2
+yarl==0.8.1
