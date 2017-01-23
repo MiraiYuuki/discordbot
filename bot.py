@@ -84,7 +84,7 @@ class DiscordBot(object):
         self.module_contexts = {None: None}
 
         self.rights_db = auth.RightsDB(config.get("bot.rights_db_path", "rights.db"))
-        self.log_db = error_reporting.LogDB(config.get("bot.rights_db_path", "log.db"))
+        self.log_db = error_reporting.LogDB(config.get("bot.error_log_db_path", "log.db"))
 
         # assigned in on_ready
         self.check_start_mention_regex = None
