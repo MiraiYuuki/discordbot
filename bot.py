@@ -6,6 +6,8 @@ import re
 import weakref
 import auth
 import json
+import error_reporting
+import asyncio
 
 def make_glue(c, f):
     async def glue(*a, **k):
@@ -82,20 +84,37 @@ class DiscordBot(object):
         self.module_contexts = {None: None}
 
         self.rights_db = auth.RightsDB(config.get("bot.rights_db_path", "rights.db"))
+        self.log_db = error_reporting.LogDB(config.get("bot.rights_db_path", "log.db"))
 
         # assigned in on_ready
         self.check_start_mention_regex = None
         self.is_ready = 0
 
-    def init_module(self, m):
-        self.module_contexts[m.__name__] = loader.get_context_class(m)()
+    async def init_module(self, m):
+        mctx = loader.get_context_class(m)()
 
-    def uninit_module(self, m):
+        try:
+            await mctx.init_with_context(self)
+        except AttributeError:
+            pass
+
+        self.module_contexts[m.__name__] = mctx
+
+    async def uninit_module(self, m):
+        try:
+            await self.module_contexts[m.__name__].deinit(self)
+        except AttributeError:
+            pass
+
         del self.module_contexts[m.__name__]
 
-    def init_modules(self):
+    async def init_modules(self):
         for m in loader.LOADED_MODULES:
-            self.module_contexts[m.__name__] = loader.get_context_class(m)()
+            await self.init_module(m)
+
+    async def uninit_modules(self):
+        for m in loader.LOADED_MODULES:
+            await self.uninit_module(m)
 
     def get_module_context(self, mod_name_or_global):
         if mod_name_or_global == "discordbot":
@@ -113,10 +132,30 @@ class DiscordBot(object):
         for func in DiscordBot.LATE_EVENTS:
             client.event(make_glue(self, func))
 
+    async def init_modules_and_run_client(self, *args, **kwargs):
+        await self.init_modules()
+        await self.client.start(*args, **kwargs)
+
     def run(self, *args, **kwargs):
-        self.init_modules()
+        loop = self.client.loop
         self.is_ready = 0
-        self.client.run(*args, **kwargs)
+
+        try:
+            loop.run_until_complete(self.init_modules_and_run_client(*args, **kwargs))
+        except KeyboardInterrupt:
+            # https://github.com/Rapptz/discord.py/blob/async/discord/client.py#L522
+            loop.run_until_complete(self.client.logout())
+            pending = asyncio.Task.all_tasks(loop=loop)
+            gathered = asyncio.gather(*pending, loop=loop)
+            try:
+                gathered.cancel()
+                loop.run_until_complete(gathered)
+                gathered.exception()
+            except:
+                pass
+        finally:
+            loop.run_until_complete(self.uninit_modules())
+            loop.close()
 
     # --x--
 
@@ -161,7 +200,11 @@ async def on_message(context, message):
     c_ctx = context.personalize(message)
     c_ctx.push_arg0(arg0)
 
-    await loader.ROOT_COMMAND.dispatch(c_ctx, message, effective_content)
+    try:
+        await loader.ROOT_COMMAND.dispatch(c_ctx, message, effective_content)
+    except Exception as e:
+        context.log_db.log_current_error(message, e)
+        raise
 
 if __name__ == '__main__':
     import loader

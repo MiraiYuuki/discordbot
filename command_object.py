@@ -11,8 +11,14 @@ class Command(object):
 
         self.sub_dispatch_table = {}
 
-        self.execute = execution
+        self.execute = self.get_function_body(execution)
         self.provider = loader.LOADING_MODULE
+
+    def get_function_body(self, callable_):
+        if isinstance(callable_, Command):
+            return callable_.execute
+        else:
+            return callable_
 
     def is_subcommand(self):
         return bool(self.sub_dispatch_table)
@@ -56,7 +62,11 @@ class Command(object):
         elif self.execute:
             context.set_module(self.provider)
             print("dispatch: executing", message.content, "in", message.channel.name)
-            await self.execute(context, message, effective_content)
+            try:
+                await self.execute(context, message, effective_content)
+            except Exception as error:
+                await self.on_unhandled_exception(context, message, effective_content, error)
+                raise
         else:
             await self.default_implementation(context, message, effective_content)
 
@@ -66,6 +76,13 @@ class Command(object):
     async def __call__(self, *args, **kwargs):
         return await self.execute(*args, **kwargs)
 
+    async def on_unhandled_exception(self, context, message, content, error):
+        try:
+            await context.reply("Unhandled exception '{0}'! execute:'{1}' mctx:'{2}'. It will be logged automatically.".format(
+                error.__class__.__name__, self.execute, self.provider))
+        except Exception:
+            pass
+
     async def default_implementation(self, context, message, content):
         """ Reply with a help message. The content depends on whether you
             specified description, synopsis, examples, etc. """
@@ -73,7 +90,13 @@ class Command(object):
         if self.word == "":
             return
 
-        await context.reply(self.help_message(context))
+        if content:
+            header = "Unknown subcommand: `{0}`".format(content)
+        else:
+            header = "A subcommand is needed."
+
+        help_ = self.help_message(context)
+        await context.reply("\n\n".join((header, help_)))
 
     def help_message(self, context):
         msg = []
@@ -89,7 +112,7 @@ class Command(object):
         if self.execute and self.examples:
             msg.append("**Examples**:")
             for eg in self.examples:
-                msg.append("- `{0} {1} {2}`".format(context.arg0, self.word, eg))
+                msg.append("- `{0} {1}`".format(context.arg0, eg))
 
         if self.is_subcommand():
             if self.word:
@@ -113,6 +136,8 @@ class Command(object):
                     self.word))
             else:
                 msg.append("\nFor information about a specific command, DM me `help [command]`.")
+
+        msg.append("If you would like me on your server, ask my administrator.")
 
         return "\n".join(msg)
 

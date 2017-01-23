@@ -5,6 +5,8 @@ import sys
 import config
 import json
 import discord
+import os
+import binascii
 
 P_MANAGE_CONFIG = auth.declare_right("MANAGE_CONFIG")
 P_MANAGE_MODULES = auth.declare_right("MANAGE_MODULES")
@@ -26,12 +28,12 @@ async def reload_mod(context, message, content):
 
     mod = sys.modules[fq]
     loader.unload_module(content)
-    bot.uninit_module(mod)
+    await bot.uninit_module(mod)
     del mod
 
     try:
         mod = loader.load_module(content)
-        bot.init_module(mod)
+        await bot.init_module(mod)
     except Exception as e:
         await context.reply("Loading '{0}' failed with a {1}. Fix it and `load` the module again.".format(
             content, e.__class__.__name__))
@@ -51,7 +53,7 @@ async def unload_mod(context, message, content):
     bot = context.of("discordbot")
     mod = sys.modules[fq]
     loader.unload_module(content)
-    bot.uninit_module(mod)
+    await bot.uninit_module(mod)
     del mod
 
     await context.reply("\u2705")
@@ -69,7 +71,7 @@ async def load_mod(context, message, content):
 
     try:
         mod = loader.load_module(content)
-        bot.init_module(mod)
+        await bot.init_module(mod)
     except Exception as e:
         await context.reply("Loading '{0}' failed with a {1}. Fix it and `load` the module again.".format(
             content, e.__class__.__name__))
@@ -81,7 +83,16 @@ async def load_mod(context, message, content):
     description="Executes Python code in command handler context.")
 @auth.requires_right(P_EVAL_CODE)
 async def eval_code(context, message, content):
-    await context.reply(str(eval(content)))
+    f_name = binascii.hexlify(os.urandom(16)).decode("ascii")
+    code = "async def _{0}(context, message, content): return {1}".format(
+        f_name,
+        content
+    )
+    print(code)
+    exec(code)
+
+    k = eval("_{0}(context, message, content)".format(f_name))
+    await context.reply(str(await k))
 
 config_command = loader.register_command("config", "cf",
     description="Write configuration variables.")
