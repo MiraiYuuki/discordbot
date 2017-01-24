@@ -373,7 +373,7 @@ async def del_id_notsafe(context, message, content):
 
 # -x- Events
 
-@DERESUTE.subcommand("event", "tiers", "cutoffs", "e",
+@DERESUTE.subcommand("event", "tiers", "cutoffs", "e", "border",
     description="Current event cutoffs.")
 @auth.requires_right(P_DERESUTE_CUTOFFS)
 async def get_event(context, message, content):
