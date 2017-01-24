@@ -150,13 +150,21 @@ async def card(context, message, content):
         await context.reply(fmt.format(
             len(results) - 1, ", ".join(map(lambda x: str(x.root_id), results[1:])) ))
 
-@DERESUTE.subcommand("image", "cardimage", "pic",
+@DERESUTE.subcommand("sprite",
+    description="See `image`.")
+@DERESUTE.subcommand("puchi",
+    description="See `image`.")
+@DERESUTE.subcommand("cardimage",
+    description="See `image`.")
+@DERESUTE.subcommand("image", "pic",
     description="Link card or spread images. ",
     synopsis="[search terms...]",
     examples=["syuko2", "event mayu", "ssr riina"])
 @auth.requires_right(P_DERESUTE_PUBLIC)
 async def card_image(context, message, content):
     await context.client.send_typing(message.channel)
+
+    image_class = context.arg0.rsplit(maxsplit=1)[-1]
 
     if content.strip() == "":
         if context.last_lookup_card_ent is None:
@@ -181,17 +189,26 @@ async def card_image(context, message, content):
             fc = results[0]
             want_awakened = query.is_awake
 
-    if fc.rarity < 5:
-        im_class = "card"
-    else:
-        im_class = "spread"
+    if fc.rarity < 5 and image_class in {"image", "pic"}:
+        image_class = "cardimage"
+
+    im_class = {
+        "cardimage": "card",
+        "puchi": "puchi",
+        "pic": "spread",
+        "image": "spread",
+        "sprite": "sprite_go",
+    }[image_class]
 
     if want_awakened:
         use_id = fc.awakened_id
     else:
         use_id = fc.root_id
 
-    await context.reply("https://hoshimoriuta.kirara.ca/{1}/{0}.png".format(use_id, im_class))
+    if im_class == "sprite_go":
+        await context.reply("https://starlight.kirara.ca/{1}/{0}.png".format(use_id, im_class))
+    else:
+        await context.reply("https://hoshimoriuta.kirara.ca/{1}/{0}.png".format(use_id, im_class))
 
 @DERESUTE.subcommand("whatsnew",
     description="Display the latest update.")
