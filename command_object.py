@@ -91,12 +91,11 @@ class Command(object):
             return
 
         if content:
-            header = "Unknown subcommand: `{0}`".format(content)
+            header = "Unknown subcommand: `{0}`. DM me `help {1}` for a list.".format(content, self.word)
         else:
-            header = "A subcommand is needed."
+            header = "A subcommand is needed. DM me `help {0}` for a list.".format(self.word)
 
-        help_ = self.help_message(context)
-        await context.reply("\n\n".join((header, help_)))
+        await context.reply(header)
 
     def help_message(self, context):
         msg = []
