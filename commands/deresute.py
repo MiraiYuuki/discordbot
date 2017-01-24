@@ -106,24 +106,30 @@ DERESUTE = loader.register_command("deresute", "drst", "dere", "ss",
 async def card(context, message, content):
     await context.client.send_typing(message.channel)
 
-    if deresdata.needs_update(await context.get_current_truth_version()):
-        await context.reply("I need to rebuild the index, nya. I'll find your card in a few seconds...", mention=1)
-        await deresdata.build_ark()
+    if content.strip() == "":
+        if context.last_lookup_card_ent is None:
+            return await context.reply("You need to search for something, nya.", mention=1)
 
-    try:
-        query = deresdata.parse_query(content)
-        results = deresdata.exec_query(query)
-    except deresdata.InvalidQueryError as error:
-        return await context.client.send_message(message.channel, "{0} {1}".format(
-            message.author.mention,
-            str(error)
-        ))
-
-    if not results:
-        return await context.reply("There aren't any cards matching your search, nya.", mention=1)
+        fc = context.last_lookup_card_ent
     else:
-        fc = results[0]
-        context.last_lookup_card_ent = fc
+        if deresdata.needs_update(await context.get_current_truth_version()):
+            await context.reply("I need to rebuild the index, nya. I'll find your card in a few seconds...", mention=1)
+            await deresdata.build_ark()
+
+        try:
+            query = deresdata.parse_query(content)
+            results = deresdata.exec_query(query)
+        except deresdata.InvalidQueryError as error:
+            return await context.client.send_message(message.channel, "{0} {1}".format(
+                message.author.mention,
+                str(error)
+            ))
+
+        if not results:
+            return await context.reply("There aren't any cards matching your search, nya.", mention=1)
+        else:
+            fc = results[0]
+            context.last_lookup_card_ent = fc
 
     ep = "https://starlight.kirara.ca/api/v1/card_t/{0},{1}".format(fc.root_id, fc.awakened_id)
     try:
@@ -187,6 +193,7 @@ async def card_image(context, message, content):
             return await context.reply("There aren't any cards matching your search, nya.", mention=1)
         else:
             fc = results[0]
+            context.last_lookup_card_ent = fc
             want_awakened = query.is_awake
 
     if fc.rarity < 5 and image_class in {"image", "pic"}:
