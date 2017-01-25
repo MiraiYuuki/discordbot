@@ -1,13 +1,14 @@
 import loader
 
 class Command(object):
-    def __init__(self, name, *shorthands, description=None, synopsis=None, examples=None, execution=None):
+    def __init__(self, name, *shorthands, description=None, synopsis=None, examples=None, hide=0, execution=None):
         self.word = name
         self.extwords = shorthands
 
         self.description = description
         self.synopsis = synopsis
         self.examples = examples
+        self.is_hidden = hide
 
         self.sub_dispatch_table = {}
 
@@ -21,22 +22,33 @@ class Command(object):
             return callable_
 
     def is_subcommand(self):
-        return bool(self.sub_dispatch_table)
+        cmd_count = len(self.sub_dispatch_table)
 
-    def register_subcommand(self, name, *shorthands, description=None, synopsis=None, examples=None, execution=None):
+        for cmd_struct in self.sub_dispatch_table.values():
+            if cmd_struct.is_hidden:
+                cmd_count -= 1
+
+        return cmd_count > 0
+
+    def register_subcommand(self, name, *shorthands, description=None, synopsis=None, examples=None, hide=0, execution=None):
         cmd = Command(name, *shorthands,
             description=description,
             synopsis=synopsis,
             examples=examples,
+            hide=hide,
             execution=execution)
         self.sub_dispatch_table[name] = cmd
         return cmd
 
-    def subcommand(self, name, *shorthands, description=None, synopsis=None, examples=None):
+    def subcommand(self, name, *shorthands, description=None, synopsis=None, examples=None, hide=0):
         def wrapper(f):
-            cmd = self.register_subcommand(name, *shorthands, description=description, synopsis=synopsis, examples=examples, execution=f)
+            cmd = self.register_subcommand(name, *shorthands, description=description, synopsis=synopsis, examples=examples, hide=hide, execution=f)
             return cmd
         return wrapper
+
+    def delete_subcommand(self, word):
+        if word in self.sub_dispatch_table:
+            del self.sub_dispatch_table[word]
 
     async def dispatch(self, context, message, effective_content):
         nargs = effective_content.split(maxsplit=1)
@@ -121,6 +133,9 @@ class Command(object):
 
             for k in sorted(self.sub_dispatch_table.keys()):
                 cmd_struct = self.sub_dispatch_table[k]
+
+                if cmd_struct.is_hidden:
+                    continue
 
                 st = "- {0} **{1}**".format(context.arg0, cmd_struct.word)
                 if cmd_struct.synopsis:
