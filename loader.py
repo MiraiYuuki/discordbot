@@ -10,10 +10,11 @@ MODULE_CONTEXT_CLASSES = {}
 MANAGED_COMMAND_PACKAGE = config.get("bot.commands_package", "commands")
 MANAGED_COMMAND_PACKAGE_PATH = os.path.dirname(__import__(MANAGED_COMMAND_PACKAGE).__file__)
 
-ROOT_COMMAND     = Command("")
-command          = ROOT_COMMAND.subcommand
-register_command = ROOT_COMMAND.register_subcommand
-delete_command   = ROOT_COMMAND.delete_subcommand
+ROOT_COMMAND      = Command("")
+command           = ROOT_COMMAND.subcommand
+register_command  = ROOT_COMMAND.register_subcommand
+delete_command    = ROOT_COMMAND.delete_subcommand
+is_usable_command = ROOT_COMMAND.is_subcommand_or_alias
 
 def localname(name):
     return name[len(MANAGED_COMMAND_PACKAGE) + 1:]

@@ -22,17 +22,27 @@ class QuoteDB(object):
         connection.commit()
 
         self.connection = connection
+        self.managed_command_names = set()
 
     async def init_with_context(self, bot):
-        print("init_with_context")
         for name in self.quote_names():
-            print("register stub", name)
-            loader.register_command(name, execution=quote_command, hide=1)
+            self.guard_add_command(name)
 
     async def deinit(self, bot):
         for name in self.quote_names():
-            print("unregister stub", name)
+            self.guard_delete_command(name)
+
+    def guard_add_command(self, name):
+        if loader.is_usable_command(name):
+            print("guard_add_command: refusing to add {0} because it already exists".format(name))
+        else:
+            loader.register_command(name, execution=quote_command, hide=1)
+            self.managed_command_names.add(name)
+
+    def guard_delete_command(self, name):
+        if name in self.managed_command_names:
             loader.delete_command(name)
+            self.managed_command_names.remove(name)
 
     def quote_names(self):
         k = self.connection.execute("SELECT _command FROM quotes_v1")
@@ -47,7 +57,7 @@ class QuoteDB(object):
         self.connection.execute("INSERT INTO quotes_v1 VALUES (?, ?, ?)", (name, originator, response))
         self.connection.commit()
 
-        loader.register_command(name, execution=quote_command, hide=1)
+        self.guard_add_command(name)
 
     def delete_quote(self, name):
         name = name.lower()
@@ -55,7 +65,7 @@ class QuoteDB(object):
         self.connection.execute("DELETE FROM quotes_v1 WHERE _command = ?", (name,))
         self.connection.commit()
 
-        loader.delete_command(name)
+        self.guard_delete_command(name)
 
     def get_quote_for_name(self, name):
         name = name.lower()

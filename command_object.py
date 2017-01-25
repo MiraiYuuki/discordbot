@@ -30,6 +30,13 @@ class Command(object):
 
         return cmd_count > 0
 
+    def is_subcommand_or_alias(self, name):
+        for cmd_struct in self.sub_dispatch_table.values():
+            if name == cmd_struct.word or name in cmd_struct.extwords:
+                return 1
+
+        return 0
+
     def register_subcommand(self, name, *shorthands, description=None, synopsis=None, examples=None, hide=0, execution=None):
         cmd = Command(name, *shorthands,
             description=description,
