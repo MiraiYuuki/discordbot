@@ -13,6 +13,10 @@ MANAGED_COMMAND_PACKAGE_PATH = os.path.dirname(__import__(MANAGED_COMMAND_PACKAG
 ROOT_COMMAND     = Command("")
 command          = ROOT_COMMAND.subcommand
 register_command = ROOT_COMMAND.register_subcommand
+delete_command   = ROOT_COMMAND.delete_subcommand
+
+def localname(name):
+    return name[len(MANAGED_COMMAND_PACKAGE) + 1:]
 
 def context_class(cls):
     if not LOADING_MODULE:
