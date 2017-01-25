@@ -21,7 +21,7 @@ class Command(object):
         else:
             return callable_
 
-    def is_subcommand(self):
+    def has_subcommands(self):
         cmd_count = len(self.sub_dispatch_table)
 
         for cmd_struct in self.sub_dispatch_table.values():
@@ -124,7 +124,7 @@ class Command(object):
                 msg.append("`{1} {0.synopsis}`: {0.description}\n".format(self, context.arg0))
             else:
                 msg.append("`{1}`: {0.description}\n".format(self, context.arg0))
-        elif not self.is_subcommand():
+        elif not self.has_subcommands():
             msg.append("No help message available for this command.")
 
         if self.execute and self.examples:
@@ -132,7 +132,7 @@ class Command(object):
             for eg in self.examples:
                 msg.append("- `{0} {1}`".format(context.arg0, eg))
 
-        if self.is_subcommand():
+        if self.has_subcommands():
             if self.word:
                 msg.append("**Subcommands**:")
             else:
