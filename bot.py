@@ -206,20 +206,16 @@ async def on_message(context, message):
 
             if message.content.startswith(ak):
                 cmd_start = len(ak)
-                arg0 = ""
             else:
                 return
         else:
             cmd_start = match.end(0)
-            arg0 = "@{0}#{1}".format(context.client.user.name, context.client.user.discriminator)
 
         effective_content = message.content[cmd_start:].lstrip()
     else:
         effective_content = message.content.lstrip()
-        arg0 = ""
 
     c_ctx = context.personalize(message)
-    c_ctx.push_arg0(arg0)
 
     try:
         await loader.ROOT_COMMAND.dispatch(c_ctx, message, effective_content)
