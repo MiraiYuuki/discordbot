@@ -4,6 +4,7 @@ import sqlite3
 import auth
 
 P_MANAGE_QUOTE = auth.declare_right("MANAGE_QUOTE")
+P_USE_QUOTE = auth.declare_right("USE_QUOTE")
 
 class QuoteAlreadyExistsError(Exception):
     pass
@@ -77,6 +78,7 @@ class QuoteDB(object):
         else:
             return k[0]
 
+@auth.requires_right(P_USE_QUOTE)
 async def quote_command(context, message, content):
     response = context.of(loader.localname(__name__)).get_quote_for_name(context.arg0)
 
