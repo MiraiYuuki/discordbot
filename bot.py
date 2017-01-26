@@ -198,22 +198,23 @@ async def on_message(context, message):
        not context.is_ready:
         return
 
+    has_attention = 0
+    cmd_start = 0
+
+    ak = config.get("bot.attention_char", "=")
+    match = context.check_start_mention_regex.match(message.content)
+    if match:
+        cmd_start = match.end(0)
+        has_attention = 1
+    elif message.content.startswith(ak):
+        cmd_start = len(ak)
+        has_attention = 1
+
+    effective_content = message.content[cmd_start:].lstrip()
+
     # TODO: should allow the prefix to be used even in DMs
-    if mention_needed_for(message):
-        match = context.check_start_mention_regex.match(message.content)
-        if not match:
-            ak = config.get("bot.attention_char", "=")
-
-            if message.content.startswith(ak):
-                cmd_start = len(ak)
-            else:
-                return
-        else:
-            cmd_start = match.end(0)
-
-        effective_content = message.content[cmd_start:].lstrip()
-    else:
-        effective_content = message.content.lstrip()
+    if mention_needed_for(message) and not has_attention:
+        return
 
     c_ctx = context.personalize(message)
 
