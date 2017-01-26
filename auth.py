@@ -16,6 +16,7 @@ SCOPE_SERVER  = 300
 
 # A right.
 flag_t = namedtuple("flag_t", ("name",))
+grant_t = namedtuple("grant_t", ("scope", "subject", "right", "permitted"))
 
 def declare_right(name):
     KNOWN_PERMISSION_FLAGS.add(name)
@@ -46,29 +47,22 @@ class RightsDB(object):
 
         self.connection.commit()
 
-    def evaluate(self, message, flag):
+    def evaluate(self, server_id, channel_id, role_ids, user_id, flag):
         """ Check whether the message has the given right (from declare_right).
             Checks based on server, channel, roles, user ID in ascending order of
             priority. """
 
-        # FIXME soon! role rights are not checked.
-        if message.channel.is_private:
-            server_id = -1
-            # joined = ""
-        else:
-            server_id = message.server.id
-            # joined = ", ".join(repr(role.id) for role in message.author.roles)
+        joined = ",".join(repr(k) for k in role_ids)
 
-        joined = ""
-
-        k = self.connection.execute(
-            "SELECT _have FROM effective_permission "
+        the_query = ("SELECT _have FROM effective_permission "
             "WHERE _flagname = ? AND ( "
             "    (_type = 300 AND _userid_or_group = ?) OR "
             "    (_type = 250 AND _userid_or_group = ?) OR "
             "    (_type = 200 AND _userid_or_group IN ({0})) OR "
             "    (_type = 100 AND _userid_or_group = ?) "
-            ") ORDER BY _type".format(joined), (flag.name, server_id, message.channel.id, message.author.id))
+            ") ORDER BY _type").format(joined)
+
+        k = self.connection.execute(the_query, (flag.name, server_id, channel_id, user_id))
 
         perm = k.fetchone()
         if perm is not None:
@@ -76,10 +70,34 @@ class RightsDB(object):
 
         return 0
 
+    def list_applicable(self, server_id, channel_id, role_ids, user_id):
+        joined = ",".join(repr(k) for k in role_ids)
+
+        the_query = ("SELECT _type, _flagname, _userid_or_group, _have FROM effective_permission "
+            "WHERE ( "
+            "    (_type = 300 AND _userid_or_group = ?) OR "
+            "    (_type = 250 AND _userid_or_group = ?) OR "
+            "    (_type = 200 AND _userid_or_group IN ({0})) OR "
+            "    (_type = 100 AND _userid_or_group = ?) "
+            ") ORDER BY _type").format(joined)
+
+        k = self.connection.execute(the_query, (server_id, channel_id, user_id))
+        return [grant_t(scope, subject, flag_t(right), pm) for scope, right, subject, pm in k]
+
 async def evaluate_access_wrapper(execute, flag, context, message, content):
     rightsdb = context.of("auth")
 
-    if not rightsdb.evaluate(message, flag):
+    if message.channel.is_private:
+        server_id = None
+    else:
+        server_id = message.server.id
+
+    if isinstance(message.author, discord.Member):
+        roles = [role.id for role in message.author.roles]
+    else:
+        roles = []
+
+    if not rightsdb.evaluate(server_id, message.channel.id, roles, message.author.id, flag):
         try:
             await context.client.add_reaction(message, "🚫")
         except discord.errors.Forbidden:
