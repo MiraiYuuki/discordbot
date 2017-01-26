@@ -27,8 +27,17 @@ class HttpGateway(object):
         await self.app.cleanup()
 
     async def recv_msg(self, request):
+        peername = request.transport.get_extra_info('peername')
+        if peername is not None:
+            host, port = peername
+
         payload = await request.json()
         target = self.bot_ref.client.get_channel(payload["target"])
 
-        await self.bot_ref.client.send_message(target, payload["text"])
+        embed = discord.Embed(type="rich")
+        embed.add_field(name="Message from {0}:{1}".format(host, port),
+                        value=payload["text"])
+
+        await self.bot_ref.client.send_message(target, embed=embed)
+
         return aiohttp.web.Response(text="OK")
