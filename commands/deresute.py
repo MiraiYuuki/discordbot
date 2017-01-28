@@ -474,13 +474,19 @@ def embed_from_event(event):
     e_dt = pytz.utc.localize(datetime.utcfromtimestamp(event["end_date"])).astimezone(JST)
     timeleft = e_dt - now
 
-    hours = (timeleft.days * 24) + (timeleft.seconds // (60 * 60))
-    minutes = (timeleft.seconds // 60) % 60
+    if timeleft < timedelta(seconds=0):
+        embed.add_field(name=event["name"],
+            value="{0} - {1}, the event has ended.".format(
+                s_dt.strftime("%m/%d %H:%M"),
+                e_dt.strftime("%m/%d %H:%M %Z")), inline=False)
+    else:
+        hours = (timeleft.days * 24) + (timeleft.seconds // (60 * 60))
+        minutes = (timeleft.seconds // 60) % 60
 
-    embed.add_field(name=event["name"],
-        value="{0} - {1}, {2}h {3}m left.".format(
-            s_dt.strftime("%m/%d %H:%M"),
-            e_dt.strftime("%m/%d %H:%M %Z"),
-            hours, minutes), inline=False)
+        embed.add_field(name=event["name"],
+            value="{0} - {1}, {2}h {3}m left.".format(
+                s_dt.strftime("%m/%d %H:%M"),
+                e_dt.strftime("%m/%d %H:%M %Z"),
+                hours, minutes), inline=False)
 
     return embed

@@ -53,7 +53,7 @@ class EventReader(object):
         return 1
 
     async def get_current(self):
-        h_info = await httputils.cfetch("https://starlight.kirara.ca/api/v1/happening/now")
+        h_info = await httputils.cfetch("https://starlight.kirara.ca/api/v1/happening/now?extended_time_period_for_events=yes")
         # h_info = {"events": [
         #     {"id": 3013,
         #      "name": "LIVE Groove Visual burst",
