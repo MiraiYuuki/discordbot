@@ -31,7 +31,7 @@ class SelfRoleDB(object):
         self.connection.commit()
 
     def remove_sar(self, server, role_id):
-        self.connection.execute("DELETE FROM selfroles_v1 WHERE server=? AND id=?",
+        self.connection.execute("DELETE FROM selfroles_v1 WHERE server=? AND role_id=?",
             (server, role_id))
         self.connection.commit()
 
