@@ -157,8 +157,7 @@ class Command(object):
                     self.word))
             else:
                 msg.append("\nFor information about a specific command, DM me `help [command]`.")
-
-        msg.append("If you would like me on your server, ask my administrator.")
+                msg.append("If you would like me on your server, ask my administrator.")
 
         return "\n".join(msg)
 
