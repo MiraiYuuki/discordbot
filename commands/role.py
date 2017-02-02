@@ -92,7 +92,7 @@ async def addrole(context, message, text):
             mention=1)
 
     try:
-        await context.client.add_roles(message.author, *add_roles)
+        await context.client.add_roles(message.member, *add_roles)
     except discord.errors.Forbidden:
         await context.reply("Sorry, I can't assign roles on this server. "
             "If I should be able to and you are seeing this message, please let a server admin know.")
@@ -117,7 +117,7 @@ async def delrole(context, message, text):
             mention=1)
 
     try:
-        await context.client.remove_roles(message.author, *edit_roles)
+        await context.client.remove_roles(message.member, *edit_roles)
     except discord.errors.Forbidden:
         await context.reply("Sorry, I can't remove roles on this server. "
             "If I should be able to and you are seeing this message, please let a server admin know.")
