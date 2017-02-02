@@ -6,6 +6,12 @@ import discord
 
 P_MANAGE_PERMISSIONS = auth.declare_right("MANAGE_PERMISSIONS")
 
+SCOPE_CHAR = {
+    "u": auth.SCOPE_USER,
+    "r": auth.SCOPE_ROLE,
+    "c": auth.SCOPE_CHANNEL,
+    "s": auth.SCOPE_SERVER,
+}
 mention_regex = re.compile("<(@|#)!?([0-9]+)>")
 
 @loader.command("grant",
@@ -27,9 +33,13 @@ async def grant(context, message, content, check_flag=1):
     if target == "'server":
         scope = auth.SCOPE_SERVER
         subject = message.server.id
-    elif target.startswith("'"):
-        scope = auth.SCOPE_SERVER
-        subject = target[1:]
+    elif target.startswith("~"):
+        scope = SCOPE_CHAR.get(target[1], None)
+
+        if scope is None:
+            return await context.reply("The scope is invalid.")
+
+        subject = target[2:]
     else:
         match = mention_regex.match(target)
         if match:
@@ -68,6 +78,6 @@ async def whoami(context, message, content):
 @auth.requires_right(P_MANAGE_PERMISSIONS)
 async def lsrole(context, message, content):
     targ = discord.utils.find(lambda s: s.id == content, context.client.servers)
-    
+
     for k in targ.roles:
         await context.reply("{0} -> {1}".format(k.name, k.id))
