@@ -24,6 +24,10 @@ def mention_needed_for(m):
 
     return 1
 
+# Sometimes messages' author property will be a User
+# instead of Member, this breaks (among other things)
+# right evaluation so add a new member property to
+# Message that guarantees a Member (or None if DM).
 def guard_member(self):
     if isinstance(self.author, discord.Member) or not self.server:
         return self.author

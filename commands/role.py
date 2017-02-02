@@ -46,7 +46,9 @@ class SelfRoleDB(object):
 
 ROLE_COMMAND = loader.register_command("role")
 
-@ROLE_COMMAND.subcommand("make_not_self_assignable", "mnsa")
+@ROLE_COMMAND.subcommand("make_not_self_assignable", "mnsa",
+    description="Remove a role from the self-assignable list.",
+    synopsis="[role name]")
 @auth.requires_right(P_SELFROLE_ADMIN)
 async def make_not_self_assignable(context, message, text):
     if not message.server:
@@ -60,7 +62,9 @@ async def make_not_self_assignable(context, message, text):
     context.remove_sar(message.server.id, the_role.id)
     await context.reply("OK.")
 
-@ROLE_COMMAND.subcommand("make_self_assignable", "msa")
+@ROLE_COMMAND.subcommand("make_self_assignable", "msa",
+    description="Add a role to the self-assignable list.",
+    synopsis="[role name]")
 @auth.requires_right(P_SELFROLE_ADMIN)
 async def make_self_assignable(context, message, text):
     if not message.server:
@@ -74,7 +78,10 @@ async def make_self_assignable(context, message, text):
     context.add_sar(message.server.id, the_role.id, the_role.name)
     await context.reply("OK.")
 
-@ROLE_COMMAND.subcommand("add")
+@ROLE_COMMAND.subcommand("add",
+    description="Give yourself one or more roles (they must be from the self-assignable list).",
+    synopsis="[role name], [more role names...]",
+    examples=["Red, James Chungler", "Blue"])
 @auth.requires_right(P_SELFROLE_USE)
 async def addrole(context, message, text):
     rolenames = text.split(",")
@@ -99,7 +106,10 @@ async def addrole(context, message, text):
     else:
         await context.reply("OK, I've given you the requested roles.")
 
-@ROLE_COMMAND.subcommand("del", "delete")
+@ROLE_COMMAND.subcommand("del", "delete",
+    description="Remove one or more roles from yourself (they must be from the self-assignable list).",
+    synopsis="[role name], [more role names...]",
+    examples=["Red, James Chungler", "Blue"])
 @auth.requires_right(P_SELFROLE_USE)
 async def delrole(context, message, text):
     rolenames = text.split(",")
