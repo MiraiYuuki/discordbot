@@ -24,6 +24,13 @@ def mention_needed_for(m):
 
     return 1
 
+def guard_member(self):
+    if isinstance(self.author, discord.Member) or not self.server:
+        return self.author
+
+    return self.server.get_member(self.author.id)
+discord.Message.member = property(guard_member)
+
 class SelfTerminate(BaseException):
     pass
 

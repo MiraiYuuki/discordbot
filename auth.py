@@ -87,13 +87,13 @@ class RightsDB(object):
 async def evaluate_access_wrapper(execute, flag, context, message, content):
     rightsdb = context.of("auth")
 
-    if message.channel.is_private:
+    if message.server is None:
         server_id = None
     else:
         server_id = message.server.id
 
-    if isinstance(message.author, discord.Member):
-        roles = [role.id for role in message.author.roles]
+    if message.server is not None:
+        roles = [role.id for role in message.member.roles]
     else:
         roles = []
 
